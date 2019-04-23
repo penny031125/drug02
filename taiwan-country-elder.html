@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>D3練習：1998-2015年台灣縣市老年人口比例 – Andy Lin – Data journalist from Taiwan</title>
+
+        <meta charset="utf-8" />
+    <meta content='text/html; charset=utf-8' http-equiv='Content-Type'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0'>
+
+    
+    <meta name="description" content="用政府人口資料練習年份拉軸跟地圖填色。
+
+" />
+    <meta property="og:description" content="用政府人口資料練習年份拉軸跟地圖填色。
+
+" />
+    
+    <meta name="author" content="Andy Lin" />
+
+    
+    <meta property="og:title" content="D3練習：1998-2015年台灣縣市老年人口比例" />
+    <meta property="twitter:title" content="D3練習：1998-2015年台灣縣市老年人口比例" />
+    
+
+    <!--[if lt IE 9]>
+      <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+    <link rel="alternate" type="application/rss+xml" title="Andy Lin - Data journalist from Taiwan" href="/feed.xml" />
+     
+    <link rel="stylesheet" href="/css/2016-10-31-taiwan-county-elder.css" media="screen" type="text/css">  
+
+     
+    <script src='/javascripts/d3.min.js' type="text/javascript"></script>
+    
+    <script src='/javascripts/topojson.min.js' type="text/javascript"></script>
+     
+
+    <!-- Created with Jekyll Now - http://github.com/barryclark/jekyll-now -->
+</head>
+
+<body>
+    <div class="wrapper-masthead">
+        <div class="container">
+            <header class="masthead clearfix">
+                <div class="site-info">
+                    <h1 class="site-name"><a href="/">Andy Lin</a></h1>
+                    <p class="site-description">Data journalist from Taiwan</p>
+                </div>
+
+                <nav>
+                    <a href="/">Blog</a>
+                    <a href="/work">Work</a>
+                    <a href="/about">About</a>
+                </nav>
+            </header>
+        </div>
+    </div>
+    <div id="main" role="main" class="container">
+        <article class="post">
+  <h1>D3練習：1998-2015年台灣縣市老年人口比例</h1>
+
+  <div class="author_date">
+    Andy Lin on 2016-11-01
+  </div>
+
+  <div class="entry">
+    <p>用政府人口資料練習年份拉軸跟地圖填色。</p>
+
+<!-- more -->
+
+<div id="vis"></div>
+<script>
+    var width = 960,
+        height = 700;
+
+    var legendData = d3.range(6.1, 18, 1.33);
+    var legendText = d3.range(6, 18);
+
+    var quantize = d3.scaleQuantize()
+        .domain([6, 18])
+        .range(d3.range(9).map(function(i) {
+            return "q" + i + "-9";
+        }));
+
+    var dragX = d3.scaleQuantize()
+        .domain([0, 510])
+        .range(d3.range(0, 540, 30));
+
+    var xToYear = d3.scaleOrdinal()
+        .domain(d3.range(0, 540, 30))
+        .range(d3.range(1998, 2016));
+
+    var yearToX = d3.scaleOrdinal()
+        .range(d3.range(0, 540, 30))
+        .domain(d3.range(1998, 2016, 1));
+
+    var legendY = d3.scaleLinear()
+        .range([0, 225])
+        .domain([6, 18]);
+
+    var svg = d3.select("#vis").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    var projection = d3.geoMercator()
+        .center([121, 22])
+        .scale(8000)
+        .translate([width / 2, height / 2 + 250]);
+
+    var path = d3.geoPath()
+        .projection(projection);
+
+    d3.json("/data/test.json", function(error, uk) {
+        if (error) return console.error(error);
+
+        svg.append("g")
+            .selectAll("path")
+            .data(topojson.feature(uk, uk.objects.subunits).features)
+            .enter().append("path")
+            .attr("class", function(d) {
+                return "subunit " + quantize(d.properties.d_1998_1);
+            })
+            .attr("d", path)
+            .on("mouseover", mouseover)
+            .on("mouseout", mouseout);
+
+        svg.append("path")
+            .datum(topojson.mesh(uk, uk.objects.subunits, function(a, b) {
+                return a !== b;
+            }))
+            .attr("d", path)
+            .attr("class", "subunit-boundary");
+
+        svg.append("path")
+            .datum(topojson.mesh(uk, uk.objects.subunits, function(a, b) {
+                return a === b;
+            }))
+            .attr("class", "subunit-boundary")
+            .attr("d", path);
+
+
+        svg.selectAll(".subunit-label")
+            .data(topojson.feature(uk, uk.objects.subunits).features)
+            .enter().append("text")
+            .attr("class", function(d) {
+                return "subunit-label " + d.properties.C_Name;
+            })
+            .attr("transform", function(d) {
+                return "translate(" + path.centroid(d) + ")";
+            })
+            .attr("dy", ".35em")
+            .text(function(d) {
+                return d.properties.C_Name;
+            })
+            .style("opacity", 0);
+
+
+        var dragBar = svg.append("g")
+            .attr("class", "dragBar")
+            .attr("transform", "translate(200,50)");
+
+        dragBar.append("g")
+            .attr("class", "axis axis-top")
+            .call(d3.axisBottom(yearToX).tickValues(d3.range(1998, 2016, 2)));
+
+        dragBar.append("g")
+            .attr("class", "axis axis-down")
+            .attr("transform", "translate(0,-5)")
+            .call(d3.axisTop(yearToX).tickValues(d3.range(1999, 2016, 2)));
+
+        dragBar.append("rect")
+            .attr("x", 0)
+            .attr("y", -6)
+            .attr("width", 510)
+            .attr("height", 5);
+
+        dragBar
+            .append("circle")
+            .attr("cy", -4)
+            .attr("r", 8)
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        var legend = svg.append("g")
+            .attr("class", "legend")
+            .attr("transform", "translate(" + (width - 300) + "," + (height - 350) + ")")
+
+        legend.selectAll("rect")
+            .data(legendData)
+            .enter()
+            .append("rect")
+            .attr("class", function(d) {
+                return quantize(d);
+            })
+            .attr("x", 0)
+            .attr("y", function(d, i) {
+                return i * 25;
+            })
+            .attr("width", 25)
+            .attr("height", 25);
+
+        legend.append("g")
+            .attr("transform", "translate(25, 0)")
+            .call(d3.axisRight(legendY)
+                .tickValues(d3.range(6, 19, 4))
+                .tickFormat(function(d) {
+                    return d + "%";
+                }));
+
+        var playButton = svg.append("g")
+            .attr("transform", "translate(150, 50)");
+
+        playButton.append("circle")
+            .attr("class", "playButton")
+            .attr("r", 25)
+            .attr("cx", 0)
+            .attr("cy", 0)
+            .classed("play", false)
+            .on("click", click);
+
+        playButton.append('polygon')
+            .attr("class", "triangle")
+            .attr('points', '-7,10 -7,-10 15,0')
+            .style("pointer-events", "none");
+
+        playButton.append('rect')
+            .attr("class", "stop")
+            .attr("x", -12)
+            .attr("y", 4)
+            .attr("width", 25)
+            .attr("height", 7)
+            .style("pointer-events", "none")
+            .style("opacity", 0);
+
+        playButton.append('rect')
+            .attr("class", "stop")
+            .attr("x", -12)
+            .attr("y", -10)
+            .attr("width", 25)
+            .attr("height", 7)
+            .style("pointer-events", "none")
+            .style("opacity", 0);
+
+
+        function dragstarted(d) {
+            d3.select(this).classed("active", true);
+        }
+
+        function dragged(d) {
+            d3.select(this).attr("cx", function() {
+                if (d3.event.x > 510) {
+                    return 510;
+                } else if (d3.event.x < 0) {
+                    return 0;
+                } else {
+                    return dragX(d3.event.x);
+                }
+            });
+
+            var year = xToYear(d3.select(this).attr("cx"));
+            var yearProperty = "d_" + year + "_1";
+
+            svg.selectAll(".subunit")
+                .attr("class", function(d) {
+                    return "subunit " + quantize(d["properties"][yearProperty]);
+                })
+        }
+
+        function dragended(d) {
+            d3.select(this).classed("active", false);
+        }
+
+        function mouseover(d) {
+            var target = "." + d.properties.C_Name;
+            d3.select(target).style("opacity", 1);
+        }
+
+        function mouseout(d) {
+            var target = "." + d.properties.C_Name;
+            d3.select(target).style("opacity", 0);
+        }
+
+        function click() {
+            if (!d3.select(".playButton").classed("play")) {
+                d3.select(".playButton").classed("play", true);
+                d3.select(".triangle").style("opacity", 0);
+                d3.selectAll(".stop").style("opacity", 1);
+                var circle = d3.select(".dragBar circle");
+                var x = +circle.attr("cx");
+                x = x >= 510 ? 0 : x;
+                circle.attr("cx", x);
+
+                window.t = d3.interval(function() {
+                    x = x + 30;
+                    if (x > 510) {
+                        d3.select(".triangle").style("opacity", 1);
+                        d3.selectAll(".stop").style("opacity", 0);
+                        d3.select(".playButton").classed("play", false);
+                        t.stop();
+                        return;
+                    }
+                    circle.attr("cx", x);
+                    var year = xToYear(circle.attr("cx"));
+                    var yearProperty = "d_" + year + "_1";
+
+                    svg.selectAll(".subunit")
+                        .attr("class", function(d) {
+                            return "subunit " + quantize(d["properties"][yearProperty]);
+                        });
+                }, 300);
+            } else {
+                d3.select(".triangle").style("opacity", 1);
+                d3.selectAll(".stop").style("opacity", 0);
+                d3.select(".playButton").classed("play", false);
+                t.stop();
+            }
+        }
+    });
+</script>
+
+
+  </div>
+
+  
+</article>
+
+    </div>
+
+    <div class="wrapper-footer">
+        <div class="container">
+            <footer class="footer">
+                
+<a href="mailto:imandylin2@gmail.com"><i class="svg-icon email"></i></a>
+<a href="https://www.facebook.com/imDataMan"><i class="svg-icon facebook"></i></a>
+
+<a href="https://github.com/imdataman"><i class="svg-icon github"></i></a>
+
+
+
+
+<a href="https://www.twitter.com/imandylin2"><i class="svg-icon twitter"></i></a>
+
+
+
+            </footer>
+        </div>
+    </div>
+
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-82314733-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/taiwan-county-elder/',
+		  'title': 'D3練習：1998-2015年台灣縣市老年人口比例'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+</body>
+
+</html>
+
